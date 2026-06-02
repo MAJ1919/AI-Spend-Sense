@@ -1,0 +1,173 @@
+import { useEffect, useState, createContext, useContext } from 'react';
+import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
+import { Wallet } from 'lucide-react';
+import Dashboard from './pages/Dashboard';
+import History from './pages/History';
+import Settings from './pages/Settings';
+import { OnboardingModal } from './components/spendsense/OnboardingStack';
+import { useSpendStore, Transaction as StoreTransaction } from './lib/spendsense/store';
+import { Transaction, Subscription } from './lib/types';
+
+// Initial transactions from screenshot for demo fallback
+const INITIAL_TRANSACTIONS: Transaction[] = [
+  { id: '1', date: '2025-05-15', merchant: 'University Cafeteria', amount: 22.00, category: 'Food' },
+  { id: '2', date: '2025-05-18', merchant: 'Jarir Bookstore', amount: 1899.00, category: 'Electronics' },
+  { id: '3', date: '2025-08-15', merchant: 'Jahez App', amount: 68.00, category: 'Food' },
+  { id: '4', date: '2025-08-19', merchant: 'Fuel Gas Station', amount: 60.00, category: 'Transport' },
+  { id: '5', date: '2025-11-15', merchant: 'Netflix Subscription', amount: 56.00, category: 'Subscriptions' },
+  { id: '6', date: '2025-11-20', merchant: 'TRX_8841_X', amount: 42.00, category: 'Food' },
+  { id: '7', date: '2026-02-15', merchant: 'University Cafeteria', amount: 18.00, category: 'Food' },
+  { id: '8', date: '2026-02-17', merchant: 'Al-Mazra\'a Supermarket', amount: 145.00, category: 'Groceries' },
+  { id: '9', date: '2026-05-15', merchant: 'Fuel Gas Station', amount: 25.00, category: 'Transport' },
+  { id: '10', date: '2026-05-20', merchant: 'Local Cafe', amount: 24.00, category: 'Food' },
+  { id: '11', date: '2026-05-22', merchant: 'Campus Copy & Print Center', amount: 15.00, category: 'Education' }
+];
+
+// Initial subscriptions from screenshot
+const INITIAL_SUBSCRIPTIONS: Subscription[] = [
+  { id: 's1', name: 'Netflix', amount: 55, status: 'active', lastPaymentDate: '2026-05-22', category: 'Subscriptions', iconType: 'clapboard' },
+  { id: 's2', name: 'Anghami Plus', amount: 21, status: 'suspicious', lastPaymentDate: '2026-05-18', category: 'Subscriptions', iconType: 'music' },
+  { id: 's3', name: 'iCloud+ 200GB', amount: 11, status: 'active', lastPaymentDate: '2026-05-15', category: 'Subscriptions', iconType: 'cloud' },
+  { id: 's4', name: 'Shahid VIP', amount: 39, status: 'suspicious', lastPaymentDate: '2026-04-30', category: 'Subscriptions', iconType: 'tv' }
+];
+
+interface AppContextType {
+  transactions: Transaction[];
+  addTransactions: (txs: Omit<Transaction, 'id'>[]) => void;
+  clearTransactions: () => void;
+  subscriptions: Subscription[];
+  cancelSubscription: (id: string) => void;
+}
+
+const AppContext = createContext<AppContextType | undefined>(undefined);
+
+export function useApp() {
+  const context = useContext(AppContext);
+  if (!context) throw new Error('useApp must be used inside AppProvider');
+  return context;
+}
+
+export default function App() {
+  const storeTransactions = useSpendStore((s) => s.transactions);
+  const storeAddTransactions = useSpendStore((s) => s.addTransactions);
+  const resetStoreData = useSpendStore((s) => s.resetData);
+  
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>(INITIAL_SUBSCRIPTIONS);
+
+  // Pre-seed store transactions if currently empty, for visual richness
+  useEffect(() => {
+    if (storeTransactions.length === 0) {
+      const mapped: StoreTransaction[] = INITIAL_TRANSACTIONS.map(tx => ({
+        id: tx.id,
+        date: tx.date,
+        merchant: tx.merchant,
+        category: tx.category,
+        amount: tx.amount,
+        source: 'manual'
+      }));
+      storeAddTransactions(mapped);
+    }
+  }, []);
+
+  const addTransactions = (newTxs: Omit<Transaction, 'id'>[]) => {
+    const mapped: StoreTransaction[] = newTxs.map((tx, idx) => ({
+      id: `${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
+      date: tx.date,
+      merchant: tx.merchant,
+      category: tx.category,
+      amount: tx.amount,
+      source: 'manual'
+    }));
+    storeAddTransactions(mapped);
+  };
+
+  const clearTransactions = () => {
+    resetStoreData();
+  };
+
+  const cancelSubscription = (id: string) => {
+    setSubscriptions((prev) =>
+      prev.map((sub) => (sub.id === id ? { ...sub, status: 'inactive' } : sub))
+    );
+  };
+
+  // Map store transactions back to local type
+  const transactions: Transaction[] = storeTransactions.map(tx => ({
+    id: tx.id,
+    date: tx.date,
+    merchant: tx.merchant,
+    amount: tx.amount,
+    category: tx.category as Transaction['category']
+  }));
+
+  return (
+    <AppContext.Provider value={{ transactions, addTransactions, clearTransactions, subscriptions, cancelSubscription }}>
+      <BrowserRouter>
+        <div className="flex flex-col min-h-screen">
+          {/* Onboarding Questions Overlay */}
+          <OnboardingModal />
+
+          {/* Header Navigation */}
+          <header className="border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-card border border-border-light flex items-center justify-center text-accent-teal glow-teal-sm">
+                <Wallet className="w-5 h-5" />
+              </div>
+              <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-slate-100 to-slate-300 bg-clip-text text-transparent flex items-center gap-1.5">
+                SpendSense <span className="text-accent-teal">AI</span>
+              </span>
+            </div>
+
+            <nav className="flex items-center gap-2">
+              <NavLink
+                to="/"
+                className={({ isActive }) =>
+                  `px-5 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+                    isActive
+                      ? 'bg-card border border-border-light text-slate-100 glow-teal-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`
+                }
+              >
+                Dashboard
+              </NavLink>
+              <NavLink
+                to="/history"
+                className={({ isActive }) =>
+                  `px-5 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+                    isActive
+                      ? 'bg-card border border-border-light text-slate-100 glow-teal-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`
+                }
+              >
+                History
+              </NavLink>
+              <NavLink
+                to="/settings"
+                className={({ isActive }) =>
+                  `px-5 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+                    isActive
+                      ? 'bg-card border border-border-light text-slate-100 glow-teal-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`
+                }
+              >
+                Settings
+              </NavLink>
+            </nav>
+          </header>
+
+          {/* Main App Content Area */}
+          <main className="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 flex flex-col">
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/history" element={<History />} />
+              <Route path="/settings" element={<Settings />} />
+            </Routes>
+          </main>
+        </div>
+      </BrowserRouter>
+    </AppContext.Provider>
+  );
+}
