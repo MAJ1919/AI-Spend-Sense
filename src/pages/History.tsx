@@ -18,7 +18,8 @@ export default function History() {
   const [activeCategory, setActiveCategory] = useState('all');
 
   const filtered = transactions.filter((tx) => {
-    const matchesSearch = tx.merchant.toLowerCase().includes(searchQuery.toLowerCase());
+    const merchantName = tx.merchant || '';
+    const matchesSearch = merchantName.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = activeCategory === 'all' || tx.category === activeCategory;
     return matchesSearch && matchesCategory;
   });
