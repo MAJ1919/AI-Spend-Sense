@@ -54,23 +54,51 @@ export default function App() {
   
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(INITIAL_SUBSCRIPTIONS);
 
-  // Pre-seed store transactions if currently empty, for visual richness
+  // Sync with Neon database on startup
   useEffect(() => {
-    if (storeTransactions.length === 0) {
-      const mapped: StoreTransaction[] = INITIAL_TRANSACTIONS.map(tx => ({
-        id: tx.id,
-        date: tx.date,
-        merchant: tx.merchant,
-        category: tx.category,
-        amount: tx.amount,
-        source: 'manual'
-      }));
-      storeAddTransactions(mapped);
-    }
+    const fetchDBTransactions = async () => {
+      try {
+        const response = await fetch('/api/transactions');
+        if (!response.ok) throw new Error('Database serverless API offline');
+        
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          // Clear current store cache to avoid duplicates and load fresh Postgres data
+          resetStoreData();
+          const mapped: StoreTransaction[] = data.map((tx: any) => ({
+            id: tx.id,
+            date: tx.date,
+            merchant: tx.merchant,
+            category: tx.category,
+            amount: tx.amount,
+            source: tx.source || 'db'
+          }));
+          storeAddTransactions(mapped);
+          return;
+        }
+      } catch (err) {
+        console.warn('Neon database syncing unavailable, falling back to local mock data:', err);
+      }
+
+      // Pre-seed demo fallback if database sync failed and store is empty
+      if (storeTransactions.length === 0) {
+        const mapped: StoreTransaction[] = INITIAL_TRANSACTIONS.map(tx => ({
+          id: tx.id,
+          date: tx.date,
+          merchant: tx.merchant,
+          category: tx.category,
+          amount: tx.amount,
+          source: 'demo'
+        }));
+        storeAddTransactions(mapped);
+      }
+    };
+
+    fetchDBTransactions();
   }, []);
 
-  const addTransactions = (newTxs: Omit<Transaction, 'id'>[]) => {
-    const mapped: StoreTransaction[] = newTxs.map((tx, idx) => ({
+  const addTransactions = async (newTxs: Omit<Transaction, 'id'>[]) => {
+    const prepared = newTxs.map((tx, idx) => ({
       id: `${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
       date: tx.date,
       merchant: tx.merchant,
@@ -78,11 +106,46 @@ export default function App() {
       amount: tx.amount,
       source: 'manual'
     }));
-    storeAddTransactions(mapped);
+
+    // Optimistically update local Zustand store
+    const mappedStore: StoreTransaction[] = prepared.map(tx => ({
+      id: tx.id,
+      date: tx.date,
+      merchant: tx.merchant,
+      category: tx.category,
+      amount: tx.amount,
+      source: tx.source
+    }));
+    storeAddTransactions(mappedStore);
+
+    // Save transaction directly to Neon PostgreSQL via Serverless API
+    try {
+      for (const tx of prepared) {
+        await fetch('/api/transactions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(tx)
+        });
+      }
+    } catch (err) {
+      console.error('Failed to sync transaction to Neon Postgres database:', err);
+    }
   };
 
-  const clearTransactions = () => {
+  const clearTransactions = async () => {
+    // Clear local UI state instantly
     resetStoreData();
+
+    // Clear Neon PostgreSQL database
+    try {
+      await fetch('/api/transactions', {
+        method: 'DELETE'
+      });
+    } catch (err) {
+      console.error('Failed to clear transactions from Neon Postgres database:', err);
+    }
   };
 
   const cancelSubscription = (id: string) => {
