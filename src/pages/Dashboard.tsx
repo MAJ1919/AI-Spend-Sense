@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useApp } from '../App';
+import { useTranslation } from 'react-i18next';
 import { parseExpenseInput } from '../lib/spendsense/parser';
 import { Message } from '../lib/types';
 import { 
@@ -19,6 +20,7 @@ import {
 
 export default function Dashboard() {
   const { addTransactions, subscriptions, cancelSubscription } = useApp();
+  const { t, i18n } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -176,38 +178,38 @@ export default function Dashboard() {
               <span>Powered by watsonx Orchestrate</span>
             </div>
 
-            <h1 className="text-4xl md:text-5xl font-extrabold text-slate-100 tracking-tight leading-tight mb-4 font-sans">
-              أهلاً بك 👋
+            <h1 className={`text-4xl md:text-5xl font-extrabold text-slate-100 tracking-tight leading-tight mb-4 font-sans ${i18n.language === 'en' ? 'text-left' : 'text-right'}`}>
+              {t('dashboard.welcome', 'أهلاً بك 👋')}
             </h1>
 
-            <p className="text-slate-400 max-w-xl text-base md:text-lg leading-relaxed mb-10">
-              الصق مصاريفك بأي صيغة — رح أسجلها بهدوء، وإذا طلبت تقرير، رح أحللها لك بالعربي.
+            <p className={`text-slate-400 max-w-xl text-base md:text-lg leading-relaxed mb-10 ${i18n.language === 'en' ? 'text-left' : 'text-right'}`}>
+              {t('dashboard.welcome_desc', 'الصق مصاريفك بأي صيغة — رح أسجلها بهدوء، وإذا طلبت تقرير، رح أحللها لك بالعربي.')}
             </p>
 
             {/* Quick Actions Suggestions */}
             <div className="w-full max-w-xl space-y-4">
               <button 
-                onClick={() => handleSend("نون 78 ريال، قهوة جبل 22، نتفلكس 55")}
-                className="w-full text-right glass-card p-4 rounded-2xl flex flex-col gap-1.5 transition-all active:scale-[0.99] border-border hover:border-accent-teal/40"
+                onClick={() => handleSend(t('dashboard.example_record_text', 'نون 78 ريال، قهوة جبل 22، نتفلكس 55'))}
+                className={`w-full glass-card p-4 rounded-2xl flex flex-col gap-1.5 transition-all active:scale-[0.99] border-border hover:border-accent-teal/40 ${i18n.language === 'en' ? 'text-left' : 'text-right'}`}
               >
-                <span className="text-xs font-semibold text-accent-teal">مثال للتسجيل</span>
-                <span className="text-slate-300 text-sm md:text-base font-medium">نون 78 ريال، قهوة جبل 22، نتفلكس 55</span>
+                <span className="text-xs font-semibold text-accent-teal">{t('dashboard.example_record', 'مثال للتسجيل')}</span>
+                <span className="text-slate-300 text-sm md:text-base font-medium">{t('dashboard.example_record_text', 'نون 78 ريال، قهوة جبل 22، نتفلكس 55')}</span>
               </button>
 
               <button 
-                onClick={() => handleSend("وين صرفت هذا الأسبوع؟")}
-                className="w-full text-right glass-card p-4 rounded-2xl flex flex-col gap-1.5 transition-all active:scale-[0.99] border-border hover:border-accent-teal/40"
+                onClick={() => handleSend(t('dashboard.example_analysis_text', 'وين صرفت هذا الأسبوع؟'))}
+                className={`w-full glass-card p-4 rounded-2xl flex flex-col gap-1.5 transition-all active:scale-[0.99] border-border hover:border-accent-teal/40 ${i18n.language === 'en' ? 'text-left' : 'text-right'}`}
               >
-                <span className="text-xs font-semibold text-accent-teal">مثال للتحليل</span>
-                <span className="text-slate-300 text-sm md:text-base font-medium">وين صرفت هذا الأسبوع؟</span>
+                <span className="text-xs font-semibold text-accent-teal">{t('dashboard.example_analysis', 'مثال للتحليل')}</span>
+                <span className="text-slate-300 text-sm md:text-base font-medium">{t('dashboard.example_analysis_text', 'وين صرفت هذا الأسبوع؟')}</span>
               </button>
 
               <button 
-                onClick={() => handleSend("Check my subscriptions")}
-                className="w-full text-right glass-card p-4 rounded-2xl flex flex-col gap-1.5 transition-all active:scale-[0.99] border-border hover:border-accent-teal/40"
+                onClick={() => handleSend(t('dashboard.example_subs_text', 'Check my subscriptions'))}
+                className={`w-full glass-card p-4 rounded-2xl flex flex-col gap-1.5 transition-all active:scale-[0.99] border-border hover:border-accent-teal/40 ${i18n.language === 'en' ? 'text-left' : 'text-right'}`}
               >
-                <span className="text-xs font-semibold text-accent-teal">فحص الاشتراكات</span>
-                <span className="text-slate-300 text-sm md:text-base font-medium">Check my subscriptions</span>
+                <span className="text-xs font-semibold text-accent-teal">{t('dashboard.check_subs', 'فحص الاشتراكات')}</span>
+                <span className="text-slate-300 text-sm md:text-base font-medium">{t('dashboard.example_subs_text', 'Check my subscriptions')}</span>
               </button>
             </div>
           </div>
@@ -425,11 +427,11 @@ export default function Dashboard() {
           
           <input 
             type="text"
-            dir="rtl"
+            dir={i18n.language === 'ar' ? 'rtl' : 'ltr'}
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder="الصق مصاريفك أو اسأل عن إنفاقك..."
-            className="flex-1 bg-transparent border-0 outline-none ring-0 text-slate-100 placeholder-slate-500 text-right pr-2 text-sm md:text-base"
+            placeholder={t('dashboard.input_placeholder', 'الصق مصاريفك أو اسأل عن إنفاقك...')}
+            className={`flex-1 bg-transparent border-0 outline-none ring-0 text-slate-100 placeholder-slate-500 pr-2 text-sm md:text-base ${i18n.language === 'en' ? 'text-left pl-2' : 'text-right'}`}
           />
 
           <button 

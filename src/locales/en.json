@@ -13,8 +13,51 @@
   },
   "dashboard": {
     "title": "Dashboard",
+    "welcome": "Welcome 👋",
+    "welcome_desc": "Paste your expenses in any format — I'll record them quietly, and if you ask for a report, I'll analyze it for you.",
+    "example_record": "Recording Example",
+    "example_record_text": "Noon 78 SAR, Jabal Coffee 22, Netflix 55",
+    "example_analysis": "Analysis Example",
+    "example_analysis_text": "Where did I spend this week?",
+    "check_subs": "Check Subscriptions",
+    "example_subs_text": "Check my subscriptions",
+    "input_placeholder": "Paste your expenses or ask about your spending...",
     "total_spending": "Total Spending",
     "recent_transactions": "Recent Transactions",
     "active_subscriptions": "Active Subscriptions"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Customize your AI financial assistant",
+    "profile": "Profile and Salary",
+    "first_name": "First Name",
+    "name_placeholder": "Friend",
+    "monthly_income": "Estimated Monthly Income (Salary)",
+    "budget_limits": "Category Budget Limits",
+    "notifications": "Notification Alerts",
+    "notify_budget": "Alert when estimated monthly budget is exceeded",
+    "notify_subscriptions": "Automatically warn about suspicious subscriptions"
+  },
+  "history": {
+    "title": "Transaction History",
+    "tx_singular": "transaction",
+    "tx_plural": "transactions",
+    "search": "Search merchant...",
+    "empty": "No transactions yet — start by pasting your expenses in the chat",
+    "merchant": "Merchant / Description",
+    "category": "Category",
+    "date": "Date",
+    "amount": "Amount",
+    "clear_all": "Clear all records",
+    "clear_confirm": "Are you sure you want to clear all transactions?"
+  },
+  "currency": "SAR",
+  "categories": {
+    "Food": "Food",
+    "Transport": "Transport",
+    "Subscriptions": "Subscriptions",
+    "Groceries": "Groceries",
+    "Electronics": "Electronics",
+    "Education": "Education"
   }
 }

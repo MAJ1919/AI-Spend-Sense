@@ -8,7 +8,6 @@ import { OnboardingModal } from './components/spendsense/OnboardingStack';
 import { useSpendStore, Transaction as StoreTransaction } from './lib/spendsense/store';
 import { Transaction, Subscription } from './lib/types';
 import { useTranslation } from 'react-i18next';
-import { LanguageSwitcher } from './components/spendsense/LanguageSwitcher';
 import { LoginModal } from './components/spendsense/LoginModal';
 import { useAuth } from './lib/AuthContext';
 
@@ -233,8 +232,6 @@ export default function App() {
               >
                 {t('nav.settings', 'Settings')}
               </NavLink>
-              <div className="mx-2 h-6 w-px bg-border-light"></div>
-              <LanguageSwitcher />
               {user && (
                 <button
                   onClick={logout}
