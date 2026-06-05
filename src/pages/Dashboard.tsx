@@ -2,16 +2,27 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../App';
 import { useTranslation } from 'react-i18next';
 import { parseExpenseInput } from '../lib/spendsense/parser';
+import { useAuth } from '../lib/AuthContext';
 import { Sparkles, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 
 export default function Dashboard() {
   const { addTransactions } = useApp();
+  const { user } = useAuth();
   const { t, i18n } = useTranslation();
   const [isWatsonLoading, setIsWatsonLoading] = useState(true);
   const [watsonError, setWatsonError] = useState<string | null>(null);
   const [retryTrigger, setRetryTrigger] = useState(0);
 
   useEffect(() => {
+    if (!user) {
+      setIsWatsonLoading(false);
+      const container = document.getElementById('watson-chat-container');
+      if (container) {
+        container.innerHTML = '';
+      }
+      return;
+    }
+
     setIsWatsonLoading(true);
     setWatsonError(null);
 
@@ -116,7 +127,7 @@ export default function Dashboard() {
         }
       }
     };
-  }, [addTransactions, retryTrigger, t]);
+  }, [user, addTransactions, retryTrigger, t]);
 
   const handleRetry = () => {
     // Clean up cached global variables
