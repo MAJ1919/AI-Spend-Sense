@@ -13,8 +13,16 @@
   },
   "dashboard": {
     "title": "لوحة القيادة",
+    "welcome": "أهلاً بك 👋",
     "total_spending": "إجمالي الإنفاق",
     "recent_transactions": "أحدث المعاملات",
-    "active_subscriptions": "الاشتراكات النشطة"
+    "active_subscriptions": "الاشتراكات النشطة",
+    "welcome_desc_watson": "تحدث مع وكيلك المالي الذكي لإدخال مصاريفك أو تحليل ميزانيتك. سيتم تسجيل مصاريفك تلقائياً في جداولك.",
+    "watson_loading": "جاري بدء تشغيل مساعد Watson المالي...",
+    "error_title": "فشل في الاتصال",
+    "retry_button": "إعادة المحاولة",
+    "watson_timeout_error": "تأخر تحميل المساعد. يرجى التحقق من اتصالك بالإنترنت، والتأكد من إيقاف مانع الإعلانات، وإضافة النطاق local/Vercel إلى قائمة Allowed Origins في IBM.",
+    "watson_init_error": "حدث خطأ أثناء تشغيل المساعد. يرجى مراجعة إعدادات IBM.",
+    "watson_script_error": "فشل تحميل ملف التشغيل الخاص بـ Watson. يرجى التحقق من حظر الإعلانات أو القيود الشبكية."
   }
 }

@@ -24,7 +24,14 @@
     "input_placeholder": "Paste your expenses or ask about your spending...",
     "total_spending": "Total Spending",
     "recent_transactions": "Recent Transactions",
-    "active_subscriptions": "Active Subscriptions"
+    "active_subscriptions": "Active Subscriptions",
+    "welcome_desc_watson": "Chat with your smart financial agent to record expenses or analyze your budget. Your expenses will be automatically recorded in your tables.",
+    "watson_loading": "Starting Watson financial assistant...",
+    "error_title": "Connection Failed",
+    "retry_button": "Retry",
+    "watson_timeout_error": "Loading the assistant took longer than usual. Please check your internet connection, ensure your ad-blocker is disabled, and add your local/Vercel domain to IBM's Allowed Origins list.",
+    "watson_init_error": "An error occurred while launching the assistant. Please check your IBM configuration.",
+    "watson_script_error": "Failed to load Watson's loader script. Please check your ad-blocker or network restrictions."
   },
   "settings": {
     "title": "Settings",
