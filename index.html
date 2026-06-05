@@ -12,7 +12,28 @@
   </head>
   <body class="bg-background text-slate-100 font-sans antialiased overflow-x-hidden min-h-screen">
     <div id="root"></div>
+    <div id="watson-chat"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      window.wxOConfiguration = {
+        orchestrationID: "598d5817e57c40ea9fb0bb09d12f6e53_44e67084-7a20-4dd4-bd68-6f287602b663",
+        hostURL: "https://eu-gb.watson-orchestrate.cloud.ibm.com",
+        rootElementID: "watson-chat",
+        deploymentPlatform: "ibmcloud",
+        crn: "crn:v1:bluemix:public:watsonx-orchestrate:eu-gb:a/598d5817e57c40ea9fb0bb09d12f6e53:44e67084-7a20-4dd4-bd68-6f287602b663::",
+        chatOptions: {
+          agentId: "59201b67-6653-42a2-97c9-d2559f1c6c3d",
+          agentEnvironmentId: "09633ba2-1f3f-4cfa-aec4-d06f0b3d0f3a",
+        }
+      };
+      setTimeout(function () {
+        var script = document.createElement('script');
+        script.src = window.wxOConfiguration.hostURL + '/wxochat/wxoLoader.js?embed=true';
+        script.addEventListener('load', function () {
+          wxoLoader.init();
+        });
+        document.head.appendChild(script);
+      }, 0);
+    </script>
   </body>
 </html>
-
