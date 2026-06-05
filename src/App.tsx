@@ -7,6 +7,10 @@ import Settings from './pages/Settings';
 import { OnboardingModal } from './components/spendsense/OnboardingStack';
 import { useSpendStore, Transaction as StoreTransaction } from './lib/spendsense/store';
 import { Transaction, Subscription } from './lib/types';
+import { useTranslation } from 'react-i18next';
+import { LanguageSwitcher } from './components/spendsense/LanguageSwitcher';
+import { LoginModal } from './components/spendsense/LoginModal';
+import { useAuth } from './lib/AuthContext';
 
 // Initial transactions from screenshot for demo fallback
 const INITIAL_TRANSACTIONS: Transaction[] = [
@@ -48,17 +52,25 @@ export function useApp() {
 }
 
 export default function App() {
+  const { t } = useTranslation();
+  const { user, logout } = useAuth();
+  
   const storeTransactions = useSpendStore((s) => s.transactions);
   const storeAddTransactions = useSpendStore((s) => s.addTransactions);
   const resetStoreData = useSpendStore((s) => s.resetData);
   
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(INITIAL_SUBSCRIPTIONS);
 
-  // Sync with Neon database on startup
+  // Sync with Neon database on startup or when user changes
   useEffect(() => {
+    if (!user) {
+      resetStoreData();
+      return;
+    }
+
     const fetchDBTransactions = async () => {
       try {
-        const response = await fetch('/api/transactions');
+        const response = await fetch(`/api/transactions?userId=${user.id}`);
         if (!response.ok) throw new Error('Database serverless API offline');
         
         const data = await response.json();
@@ -95,7 +107,7 @@ export default function App() {
     };
 
     fetchDBTransactions();
-  }, []);
+  }, [user]);
 
   const addTransactions = async (newTxs: Omit<Transaction, 'id'>[]) => {
     const prepared = newTxs.map((tx, idx) => ({
@@ -120,13 +132,14 @@ export default function App() {
 
     // Save transaction directly to Neon PostgreSQL via Serverless API
     try {
+      if (!user) throw new Error('Not logged in');
       for (const tx of prepared) {
         await fetch('/api/transactions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(tx)
+          body: JSON.stringify({ ...tx, userId: user.id })
         });
       }
     } catch (err) {
@@ -140,7 +153,8 @@ export default function App() {
 
     // Clear Neon PostgreSQL database
     try {
-      await fetch('/api/transactions', {
+      if (!user) throw new Error('Not logged in');
+      await fetch(`/api/transactions?userId=${user.id}`, {
         method: 'DELETE'
       });
     } catch (err) {
@@ -169,6 +183,7 @@ export default function App() {
         <div className="flex flex-col min-h-screen">
           {/* Onboarding Questions Overlay */}
           <OnboardingModal />
+          <LoginModal />
 
           {/* Header Navigation */}
           <header className="border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
@@ -192,7 +207,7 @@ export default function App() {
                   }`
                 }
               >
-                Dashboard
+                {t('nav.dashboard', 'Dashboard')}
               </NavLink>
               <NavLink
                 to="/history"
@@ -204,7 +219,7 @@ export default function App() {
                   }`
                 }
               >
-                History
+                {t('nav.history', 'History')}
               </NavLink>
               <NavLink
                 to="/settings"
@@ -216,8 +231,18 @@ export default function App() {
                   }`
                 }
               >
-                Settings
+                {t('nav.settings', 'Settings')}
               </NavLink>
+              <div className="mx-2 h-6 w-px bg-border-light"></div>
+              <LanguageSwitcher />
+              {user && (
+                <button
+                  onClick={logout}
+                  className="px-3 py-1.5 rounded-full text-sm font-medium border border-border-light text-red-400 hover:text-red-300 bg-card hover:bg-card/80 transition-all ml-2"
+                >
+                  {t('nav.logout', 'Logout')}
+                </button>
+              )}
             </nav>
           </header>
 

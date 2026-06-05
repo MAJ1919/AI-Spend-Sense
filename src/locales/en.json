@@ -1,0 +1,20 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "history": "History",
+    "settings": "Settings"
+  },
+  "login": {
+    "title": "Welcome to SpendSense AI",
+    "subtitle": "Enter any username to create your simple MVP account and get started.",
+    "username": "Username",
+    "placeholder": "e.g., ahmed",
+    "button": "Continue"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "total_spending": "Total Spending",
+    "recent_transactions": "Recent Transactions",
+    "active_subscriptions": "Active Subscriptions"
+  }
+}
