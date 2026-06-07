@@ -75,9 +75,12 @@ export default async function handler(req: any, res: any) {
   }
 
   // Support both AGENT_* and VITE_AGENT_* env var names
-  const apiKey = process.env.AGENT_API_KEY || process.env.VITE_AGENT_API_KEY;
-  const instanceUrl = process.env.AGENT_API_URL || process.env.VITE_AGENT_API_URL;
-  const agentId = process.env.AGENT_ID || process.env.VITE_AGENT_ID;
+  // (Vercel may have them stored with the VITE_ prefix from frontend config).
+  // Trim to defend against a trailing \r from CRLF .env files on Windows, which
+  // otherwise corrupts the IAM token request -> 400 "Bad Request".
+  const apiKey = (process.env.AGENT_API_KEY || process.env.VITE_AGENT_API_KEY)?.trim();
+  const instanceUrl = (process.env.AGENT_API_URL || process.env.VITE_AGENT_API_URL)?.trim();
+  const agentId = (process.env.AGENT_ID || process.env.VITE_AGENT_ID)?.trim();
 
   if (!apiKey || !instanceUrl || !agentId) {
     console.error('Missing Watson config. AGENT_API_KEY:', !!apiKey, 'AGENT_API_URL:', !!instanceUrl, 'AGENT_ID:', !!agentId);
