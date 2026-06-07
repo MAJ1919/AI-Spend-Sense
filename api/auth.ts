@@ -1,7 +1,24 @@
 import { neon } from '@neondatabase/serverless';
+import crypto from 'crypto';
+
+// Salted scrypt password hashing (Node built-in, no extra deps).
+// Stored format: "<saltHex>:<derivedKeyHex>".
+function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${derived}`;
+}
+
+function verifyPassword(password: string, stored: string): boolean {
+  const [salt, key] = (stored || '').split(':');
+  if (!salt || !key) return false;
+  const derived = crypto.scryptSync(password, salt, 64);
+  const keyBuf = Buffer.from(key, 'hex');
+  return keyBuf.length === derived.length && crypto.timingSafeEqual(keyBuf, derived);
+}
 
 export default async function handler(req: any, res: any) {
-  const databaseUrl = process.env.DATABASE_URL;
+  const databaseUrl = process.env.DATABASE_URL?.trim();
   if (!databaseUrl) {
     return res.status(500).json({ error: 'DATABASE_URL environment variable is missing.' });
   }
@@ -39,9 +56,7 @@ export default async function handler(req: any, res: any) {
         return res.status(409).json({ error: 'Username already exists.' });
       }
 
-      // Very simple hashing for MVP: base64 encode the password
-      // In production, use bcrypt or argon2
-      const passwordHash = btoa(password);
+      const passwordHash = hashPassword(password);
       const userId = 'usr_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
 
       await sql`
@@ -59,9 +74,8 @@ export default async function handler(req: any, res: any) {
       }
 
       const user = users[0];
-      const passwordHash = btoa(password);
 
-      if (user.password_hash !== passwordHash) {
+      if (!verifyPassword(password, user.password_hash)) {
         return res.status(401).json({ error: 'Invalid username or password.' });
       }
 
