@@ -2,7 +2,7 @@ import { neon } from '@neondatabase/serverless';
 
 export default async function handler(req: any, res: any) {
   // Check if DATABASE_URL is configured
-  const databaseUrl = process.env.DATABASE_URL;
+  const databaseUrl = process.env.DATABASE_URL?.trim();
   if (!databaseUrl) {
     return res.status(500).json({ error: 'DATABASE_URL environment variable is missing.' });
   }
