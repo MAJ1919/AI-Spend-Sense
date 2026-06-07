@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useApp } from '../App';
 import { useTranslation } from 'react-i18next';
-import { parseExpenseInput } from '../lib/spendsense/parser';
 import { useAuth } from '../lib/AuthContext';
 import { Sparkles, Loader2, AlertCircle, Paperclip, X, CheckCircle2 } from 'lucide-react';
 import { Transaction } from '../lib/types';
@@ -47,8 +46,8 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
   
-  // Store messages as {role, content} for Watson conversation history
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
+  // Store messages as {role, content, displayContent?} for Watson conversation history
+  const [messages, setMessages] = useState<{ role: 'user' | 'assistant', content: string, displayContent?: string }[]>([]);
   const [inputText, setInputText] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [watsonError, setWatsonError] = useState<string | null>(null);
@@ -96,7 +95,7 @@ export default function Dashboard() {
     }
 
     // Add user message to local state
-    const updatedMessages = [...messages, { role: 'user' as const, content: displayContent }];
+    const updatedMessages = [...messages, { role: 'user' as const, content: displayContent, displayContent }];
     setMessages(updatedMessages);
     
     // Removed local parsing fallback to rely purely on Watson's structured output
@@ -112,7 +111,7 @@ export default function Dashboard() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          messages: updatedMessages,
+          messages: updatedMessages.map(m => ({ role: m.role, content: m.content })),
           sessionId: user?.id 
         }),
       });
@@ -134,8 +133,8 @@ export default function Dashboard() {
         setSavedTxCount(extractedTxs.length);
       }
 
-      // Add the assistant's response (clean text without JSON block) to history
-      setMessages(prev => [...prev, { role: 'assistant', content: cleanText }]);
+      // Add the assistant's response (raw text to history, clean text for display)
+      setMessages(prev => [...prev, { role: 'assistant', content: rawReply, displayContent: cleanText }]);
     } catch (error) {
       console.error("Failed to send message:", error);
       setWatsonError(t('dashboard.send_error', 'حدث خطأ أثناء إرسال الرسالة. يرجى التحقق من إعدادات Watson Orchestrate.'));
@@ -175,7 +174,7 @@ export default function Dashboard() {
             messages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[80%] rounded-2xl p-4 text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'bg-accent-teal/20 text-teal-100 border border-teal-500/20' : 'bg-slate-800 text-slate-200 border border-slate-700'}`}>
-                  {msg.content}
+                  {msg.displayContent !== undefined ? msg.displayContent : msg.content}
                 </div>
               </div>
             ))
