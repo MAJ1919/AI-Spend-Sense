@@ -29,6 +29,25 @@ async function getIamToken(apiKey: string): Promise<string> {
   return cachedToken!;
 }
 
+// System prompt that instructs Watson to output structured transaction data
+const SYSTEM_PROMPT = `You are SpendSense AI, a bilingual (Arabic/English) financial assistant that helps users track their expenses and manage their budgets.
+
+CORE RULES:
+1. Always respond in the same language the user is using (Arabic or English).
+2. When the user provides expense or transaction information (receipts, bank statements, transaction lists, or individual expenses), you MUST extract each individual transaction and include a structured data block in your response.
+3. Use this exact format for the structured block — place it at the END of your response:
+
+[TRANSACTIONS_JSON]
+[{"date":"YYYY-MM-DD","merchant":"Store/Merchant Name","amount":123.45,"category":"Food"}]
+[/TRANSACTIONS_JSON]
+
+4. Valid categories are: Food, Transport, Entertainment, Subscriptions, Shopping, Electronics, Education, Groceries, Other
+5. If the user does not specify a date, use today's date.
+6. If a merchant name is unclear or abbreviated, ask the user for clarification BEFORE outputting the transactions block.
+7. When the user asks for analysis, reports, budget reviews, or summaries, provide detailed answers based on the full conversation history. Do NOT include the [TRANSACTIONS_JSON] block for analysis/report requests.
+8. Always be helpful, concise, and accurate with financial data.
+9. When you receive a large batch of transactions, process ALL of them and include every single one in the JSON block — do not omit any.`;
+
 export default async function handler(req: any, res: any) {
   // CORS configuration
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -56,7 +75,6 @@ export default async function handler(req: any, res: any) {
   }
 
   // Support both AGENT_* and VITE_AGENT_* env var names
-  // (Vercel may have them stored with the VITE_ prefix from frontend config)
   const apiKey = process.env.AGENT_API_KEY || process.env.VITE_AGENT_API_KEY;
   const instanceUrl = process.env.AGENT_API_URL || process.env.VITE_AGENT_API_URL;
   const agentId = process.env.AGENT_ID || process.env.VITE_AGENT_ID;
@@ -67,19 +85,34 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { message, sessionId } = req.body;
-    if (!message) {
-      return res.status(400).json({ error: 'Missing parameter: message' });
+    // Accept either the new format (messages array) or legacy format (single message string)
+    const { messages: clientMessages, message: legacyMessage, sessionId } = req.body;
+
+    // Build the messages array for Watson
+    let conversationMessages: { role: string; content: string }[] = [];
+
+    if (Array.isArray(clientMessages) && clientMessages.length > 0) {
+      // New format: full conversation history from the frontend
+      conversationMessages = clientMessages;
+    } else if (legacyMessage) {
+      // Legacy format: single message string (backward compatibility)
+      conversationMessages = [{ role: 'user', content: legacyMessage }];
+    } else {
+      return res.status(400).json({ error: 'Missing parameter: messages or message' });
     }
 
     // 1. Fetch valid IAM Token
     const iamToken = await getIamToken(apiKey);
 
-    // 2. Relay request to Watson Orchestrate Agent Chat Endpoint.
-    // SaaS path is /v1/orchestrate/<agent>/chat/completions (no /api prefix).
-    // Trim any trailing slash on the instance URL so both forms work.
+    // 2. Relay request to Watson Orchestrate Agent Chat Endpoint
     const baseUrl = instanceUrl.replace(/\/+$/, '');
     const targetUrl = `${baseUrl}/v1/orchestrate/${agentId}/chat/completions`;
+
+    // Prepend the system prompt to the conversation history
+    const fullMessages = [
+      { role: 'system', content: SYSTEM_PROMPT },
+      ...conversationMessages
+    ];
 
     const watsonResponse = await fetch(targetUrl, {
       method: 'POST',
@@ -89,12 +122,7 @@ export default async function handler(req: any, res: any) {
         'Accept': 'application/json',
       },
       body: JSON.stringify({
-        messages: [
-          {
-            role: 'user',
-            content: message
-          }
-        ],
+        messages: fullMessages,
         stream: false,
         session_id: sessionId
       }),

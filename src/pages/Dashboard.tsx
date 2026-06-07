@@ -3,18 +3,56 @@ import { useApp } from '../App';
 import { useTranslation } from 'react-i18next';
 import { parseExpenseInput } from '../lib/spendsense/parser';
 import { useAuth } from '../lib/AuthContext';
-import { Sparkles, Loader2, AlertCircle, Paperclip, X } from 'lucide-react';
+import { Sparkles, Loader2, AlertCircle, Paperclip, X, CheckCircle2 } from 'lucide-react';
+
+// Helper: extract structured transactions from Watson's response text
+function extractTransactionsFromResponse(responseText: string): {
+  cleanText: string;
+  transactions: { date: string; merchant: string; amount: number; category: string }[];
+} {
+  const marker = /\[TRANSACTIONS_JSON\]([\s\S]*?)\[\/TRANSACTIONS_JSON\]/;
+  const match = responseText.match(marker);
+
+  if (!match) {
+    return { cleanText: responseText, transactions: [] };
+  }
+
+  // Remove the JSON block from the display text
+  const cleanText = responseText.replace(marker, '').trim();
+
+  try {
+    const parsed = JSON.parse(match[1].trim());
+    if (Array.isArray(parsed)) {
+      // Validate each transaction has required fields
+      const valid = parsed.filter(
+        (tx: any) => tx.merchant && typeof tx.amount === 'number' && tx.amount > 0
+      ).map((tx: any) => ({
+        date: tx.date || new Date().toISOString().split('T')[0],
+        merchant: tx.merchant,
+        amount: tx.amount,
+        category: tx.category || 'Other',
+      }));
+      return { cleanText, transactions: valid };
+    }
+  } catch (e) {
+    console.warn('Failed to parse TRANSACTIONS_JSON from Watson response:', e);
+  }
+
+  return { cleanText, transactions: [] };
+}
 
 export default function Dashboard() {
   const { addTransactions } = useApp();
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
   
+  // Store messages as {role, content} for Watson conversation history
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
   const [inputText, setInputText] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [watsonError, setWatsonError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [savedTxCount, setSavedTxCount] = useState<number | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -31,6 +69,14 @@ export default function Dashboard() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Auto-dismiss the "saved" notification
+  useEffect(() => {
+    if (savedTxCount !== null) {
+      const timer = setTimeout(() => setSavedTxCount(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [savedTxCount]);
+
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputText.trim() && !selectedFile) return;
@@ -42,17 +88,20 @@ export default function Dashboard() {
     setSelectedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     
-    // Add user message
+    // Build display content for the user bubble
     let displayContent = text;
     if (file) {
       displayContent = text ? `[📎 ${file.name}]\n${text}` : `[📎 ${file.name}]`;
     }
-    setMessages(prev => [...prev, { role: 'user', content: displayContent }]);
+
+    // Add user message to local state
+    const updatedMessages = [...messages, { role: 'user' as const, content: displayContent }];
+    setMessages(updatedMessages);
     
-    // Attempt parsing for expenses from user message (optional fallback)
+    // Also try local parsing for quick expense detection (fallback)
     const parsed = parseExpenseInput(text);
     if (!parsed.isQuery && parsed.transactions.length > 0) {
-       console.log("Expense detected! Saving to DB:", parsed.transactions);
+       console.log("Local parser detected expenses, saving:", parsed.transactions);
        addTransactions(parsed.transactions);
     }
 
@@ -60,13 +109,14 @@ export default function Dashboard() {
     setWatsonError(null);
 
     try {
+      // Send the FULL conversation history to Watson for context memory
       const response = await fetch('/api/watson-chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          message: text,
+          messages: updatedMessages,
           sessionId: user?.id 
         }),
       });
@@ -76,9 +126,20 @@ export default function Dashboard() {
       }
 
       const data = await response.json();
-      const agentReply = data.choices?.[0]?.message?.content || t('dashboard.no_response', 'لم يتم استلام رد.');
+      const rawReply = data.choices?.[0]?.message?.content || t('dashboard.no_response', 'لم يتم استلام رد.');
       
-      setMessages(prev => [...prev, { role: 'assistant', content: agentReply }]);
+      // Extract structured transactions from Watson's response
+      const { cleanText, transactions: extractedTxs } = extractTransactionsFromResponse(rawReply);
+
+      // Save extracted transactions to the database
+      if (extractedTxs.length > 0) {
+        console.log(`Watson extracted ${extractedTxs.length} transactions, saving to DB:`, extractedTxs);
+        addTransactions(extractedTxs);
+        setSavedTxCount(extractedTxs.length);
+      }
+
+      // Add the assistant's response (clean text without JSON block) to history
+      setMessages(prev => [...prev, { role: 'assistant', content: cleanText }]);
     } catch (error) {
       console.error("Failed to send message:", error);
       setWatsonError(t('dashboard.send_error', 'حدث خطأ أثناء إرسال الرسالة. يرجى التحقق من إعدادات Watson Orchestrate.'));
@@ -117,7 +178,7 @@ export default function Dashboard() {
           ) : (
             messages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] rounded-2xl p-4 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-accent-teal/20 text-teal-100 border border-teal-500/20' : 'bg-slate-800 text-slate-200 border border-slate-700'}`}>
+                <div className={`max-w-[80%] rounded-2xl p-4 text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'bg-accent-teal/20 text-teal-100 border border-teal-500/20' : 'bg-slate-800 text-slate-200 border border-slate-700'}`}>
                   {msg.content}
                 </div>
               </div>
@@ -133,6 +194,16 @@ export default function Dashboard() {
           )}
           <div ref={messagesEndRef} />
         </div>
+
+        {/* Transaction Saved Notification */}
+        {savedTxCount !== null && (
+          <div className="w-full bg-emerald-950/50 text-emerald-300 p-3 text-xs flex items-center justify-center gap-2 border-t border-emerald-900/30 animate-pulse">
+            <CheckCircle2 className="w-4 h-4" />
+            {savedTxCount === 1
+              ? t('dashboard.tx_saved_one', 'تم حفظ معاملة واحدة في السجل ✓')
+              : t('dashboard.tx_saved_many', `تم حفظ ${savedTxCount} معاملات في السجل ✓`)}
+          </div>
+        )}
 
         {/* Error State */}
         {watsonError && (
