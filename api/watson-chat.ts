@@ -1,6 +1,44 @@
+import { neon } from '@neondatabase/serverless';
+
 // Cache the token in memory to avoid generating a new token for every single message
 let cachedToken: string | null = null;
 let tokenExpiryTime = 0;
+
+// Pull the user's stored transactions + budgets from Neon and format them as a
+// CSV/data block so the file-analysis agent can work on real data instead of
+// asking the user to upload a file. Best-effort: returns '' if anything is missing.
+async function buildUserDataContext(sessionId?: string): Promise<string> {
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+  if (!databaseUrl || !sessionId) return '';
+
+  try {
+    const sql = neon(databaseUrl);
+    const txs = await sql`
+      SELECT date, merchant, amount, category
+      FROM transactions
+      WHERE user_id = ${sessionId}
+      ORDER BY date DESC
+      LIMIT 500
+    `;
+    if (txs.length === 0) return '';
+
+    const csv = ['date,merchant,amount,category']
+      .concat(txs.map((t: any) => `${t.date},${t.merchant},${t.amount},${t.category}`))
+      .join('\n');
+
+    const profileRows = await sql`SELECT income, budgets FROM profiles WHERE user_id = ${sessionId}`;
+    let budgetLine = '';
+    if (profileRows.length > 0) {
+      const p = profileRows[0];
+      budgetLine = `\nMonthly income: ${p.income}. Category budgets: ${JSON.stringify(p.budgets)}.`;
+    }
+
+    return `The user's transaction data is provided below as CSV (do not ask them to upload a file; analyze this data directly).\n\n${csv}\n${budgetLine}`;
+  } catch (err) {
+    console.error('Failed to load user data context from Neon:', err);
+    return '';
+  }
+}
 
 async function getIamToken(apiKey: string): Promise<string> {
   const currentTime = Date.now();
@@ -75,6 +113,13 @@ export default async function handler(req: any, res: any) {
     // 1. Fetch valid IAM Token
     const iamToken = await getIamToken(apiKey);
 
+    // 1b. Enrich the message with the user's stored data so the agent can
+    // analyze it directly instead of requesting a file upload.
+    // Embed the data in the USER turn (Orchestrate agents often ignore system turns).
+    const dataContext = await buildUserDataContext(sessionId);
+    const userContent = dataContext ? `${dataContext}\n\nQuestion: ${message}` : message;
+    const messages = [{ role: 'user', content: userContent }];
+
     // 2. Relay request to Watson Orchestrate Agent Chat Endpoint.
     // SaaS path is /v1/orchestrate/<agent>/chat/completions (no /api prefix).
     // Trim any trailing slash on the instance URL so both forms work.
@@ -89,12 +134,7 @@ export default async function handler(req: any, res: any) {
         'Accept': 'application/json',
       },
       body: JSON.stringify({
-        messages: [
-          {
-            role: 'user',
-            content: message
-          }
-        ],
+        messages,
         stream: false,
         session_id: sessionId
       }),
