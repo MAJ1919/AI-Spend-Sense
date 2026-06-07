@@ -3,7 +3,7 @@ import { useApp } from '../App';
 import { useTranslation } from 'react-i18next';
 import { parseExpenseInput } from '../lib/spendsense/parser';
 import { useAuth } from '../lib/AuthContext';
-import { Sparkles, Loader2, AlertCircle } from 'lucide-react';
+import { Sparkles, Loader2, AlertCircle, Paperclip, X } from 'lucide-react';
 
 export default function Dashboard() {
   const { addTransactions } = useApp();
@@ -14,8 +14,17 @@ export default function Dashboard() {
   const [inputText, setInputText] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [watsonError, setWatsonError] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage(e as any);
+    }
+  };
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -24,13 +33,21 @@ export default function Dashboard() {
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!inputText.trim()) return;
+    if (!inputText.trim() && !selectedFile) return;
 
     const text = inputText;
+    const file = selectedFile;
+    
     setInputText("");
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     
     // Add user message
-    setMessages(prev => [...prev, { role: 'user', content: text }]);
+    let displayContent = text;
+    if (file) {
+      displayContent = text ? `[📎 ${file.name}]\n${text}` : `[📎 ${file.name}]`;
+    }
+    setMessages(prev => [...prev, { role: 'user', content: displayContent }]);
     
     // Attempt parsing for expenses from user message (optional fallback)
     const parsed = parseExpenseInput(text);
@@ -126,22 +143,59 @@ export default function Dashboard() {
         )}
 
         {/* Input Form */}
-        <form onSubmit={handleSendMessage} className="w-full border-t border-border bg-card/50 p-4 flex gap-3">
-          <input
-            type="text"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder={t('dashboard.chat_placeholder', 'اكتب رسالتك هنا...')}
-            className={`flex-1 bg-slate-900 border border-border rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-accent-teal/50 ${i18n.language === 'en' ? 'text-left' : 'text-right'}`}
-            disabled={isSending || !user}
-          />
-          <button
-            type="submit"
-            disabled={isSending || !inputText.trim() || !user}
-            className="bg-accent-teal hover:bg-teal-500 text-slate-900 px-6 py-3 rounded-xl font-bold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {t('dashboard.send', 'إرسال')}
-          </button>
+        <form onSubmit={handleSendMessage} className="w-full border-t border-border bg-card/50 p-4 flex flex-col gap-3 relative">
+          
+          {/* Selected File Badge */}
+          {selectedFile && (
+            <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 w-max px-3 py-1.5 rounded-lg text-xs text-slate-300">
+              <Paperclip className="w-3.5 h-3.5 text-accent-teal" />
+              <span className="truncate max-w-[200px]">{selectedFile.name}</span>
+              <button 
+                type="button" 
+                onClick={() => setSelectedFile(null)}
+                className="ml-2 hover:bg-slate-700 p-1 rounded-full text-slate-400 hover:text-white transition"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          <div className="flex gap-3 items-end">
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={(e) => e.target.files && setSelectedFile(e.target.files[0])} 
+              className="hidden" 
+              id="file-upload"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="p-3 text-slate-400 hover:text-accent-teal bg-slate-900 border border-border rounded-xl transition flex-shrink-0 mb-1"
+              title="Upload file"
+              disabled={isSending || !user}
+            >
+              <Paperclip className="w-5 h-5" />
+            </button>
+
+            <textarea
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={t('dashboard.chat_placeholder', 'اكتب رسالتك هنا... (Shift + Enter لسطر جديد)')}
+              className={`flex-1 bg-slate-900 border border-border rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-accent-teal/50 resize-none min-h-[50px] max-h-[150px] overflow-y-auto ${i18n.language === 'en' ? 'text-left' : 'text-right'}`}
+              disabled={isSending || !user}
+              rows={1}
+            />
+            
+            <button
+              type="submit"
+              disabled={isSending || (!inputText.trim() && !selectedFile) || !user}
+              className="bg-accent-teal hover:bg-teal-500 text-slate-900 px-6 py-3 rounded-xl font-bold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 mb-1"
+            >
+              {t('dashboard.send', 'إرسال')}
+            </button>
+          </div>
         </form>
       </div>
     </div>
