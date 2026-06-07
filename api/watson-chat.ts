@@ -1,5 +1,3 @@
-import { neon } from '@neondatabase/serverless';
-
 // Cache the token in memory to avoid generating a new token for every single message
 let cachedToken: string | null = null;
 let tokenExpiryTime = 0;
@@ -60,9 +58,9 @@ export default async function handler(req: any, res: any) {
   const apiKey = process.env.AGENT_API_KEY;
   const instanceUrl = process.env.AGENT_API_URL;
   const agentId = process.env.AGENT_ID;
-  const workspaceId = process.env.WORKSPACE_ID;
 
-  if (!apiKey || !instanceUrl || !agentId || !workspaceId) {
+  if (!apiKey || !instanceUrl || !agentId) {
+    console.error('Missing Watson config. AGENT_API_KEY:', !!apiKey, 'AGENT_API_URL:', !!instanceUrl, 'AGENT_ID:', !!agentId);
     return res.status(500).json({ error: 'Missing Watson configuration variables in environment.' });
   }
 
@@ -98,6 +96,7 @@ export default async function handler(req: any, res: any) {
 
     if (!watsonResponse.ok) {
       const errorText = await watsonResponse.text();
+      console.error('Watson API error:', watsonResponse.status, errorText);
       return res.status(watsonResponse.status).json({ 
         error: 'Watson returned an error.', 
         details: errorText 
@@ -109,6 +108,6 @@ export default async function handler(req: any, res: any) {
 
   } catch (error: any) {
     console.error('Watson Relay Error:', error);
-    return res.status(500).json({ error: 'Failed to communicate with Watson Orchestrate.' });
+    return res.status(500).json({ error: 'Failed to communicate with Watson Orchestrate.', details: error.message });
   }
 }
