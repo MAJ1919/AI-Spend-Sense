@@ -55,9 +55,11 @@ export default async function handler(req: any, res: any) {
     });
   }
 
-  const apiKey = process.env.AGENT_API_KEY;
-  const instanceUrl = process.env.AGENT_API_URL;
-  const agentId = process.env.AGENT_ID;
+  // Support both AGENT_* and VITE_AGENT_* env var names
+  // (Vercel may have them stored with the VITE_ prefix from frontend config)
+  const apiKey = process.env.AGENT_API_KEY || process.env.VITE_AGENT_API_KEY;
+  const instanceUrl = process.env.AGENT_API_URL || process.env.VITE_AGENT_API_URL;
+  const agentId = process.env.AGENT_ID || process.env.VITE_AGENT_ID;
 
   if (!apiKey || !instanceUrl || !agentId) {
     console.error('Missing Watson config. AGENT_API_KEY:', !!apiKey, 'AGENT_API_URL:', !!instanceUrl, 'AGENT_ID:', !!agentId);
