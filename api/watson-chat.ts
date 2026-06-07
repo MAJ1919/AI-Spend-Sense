@@ -75,8 +75,11 @@ export default async function handler(req: any, res: any) {
     // 1. Fetch valid IAM Token
     const iamToken = await getIamToken(apiKey);
 
-    // 2. Relay request to Watson Orchestrate Agent Chat Endpoint
-    const targetUrl = `${instanceUrl}/api/v1/orchestrate/${agentId}/chat/completions`;
+    // 2. Relay request to Watson Orchestrate Agent Chat Endpoint.
+    // SaaS path is /v1/orchestrate/<agent>/chat/completions (no /api prefix).
+    // Trim any trailing slash on the instance URL so both forms work.
+    const baseUrl = instanceUrl.replace(/\/+$/, '');
+    const targetUrl = `${baseUrl}/v1/orchestrate/${agentId}/chat/completions`;
 
     const watsonResponse = await fetch(targetUrl, {
       method: 'POST',
@@ -92,6 +95,7 @@ export default async function handler(req: any, res: any) {
             content: message
           }
         ],
+        stream: false,
         session_id: sessionId
       }),
     });
