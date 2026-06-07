@@ -4,11 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { parseExpenseInput } from '../lib/spendsense/parser';
 import { useAuth } from '../lib/AuthContext';
 import { Sparkles, Loader2, AlertCircle, Paperclip, X, CheckCircle2 } from 'lucide-react';
+import { Transaction } from '../lib/types';
 
 // Helper: extract structured transactions from Watson's response text
 function extractTransactionsFromResponse(responseText: string): {
   cleanText: string;
-  transactions: { date: string; merchant: string; amount: number; category: string }[];
+  transactions: { date: string; merchant: string; amount: number; category: Transaction['category'] }[];
 } {
   const marker = /\[TRANSACTIONS_JSON\]([\s\S]*?)\[\/TRANSACTIONS_JSON\]/;
   const match = responseText.match(marker);
@@ -30,7 +31,7 @@ function extractTransactionsFromResponse(responseText: string): {
         date: tx.date || new Date().toISOString().split('T')[0],
         merchant: tx.merchant,
         amount: tx.amount,
-        category: tx.category || 'Other',
+        category: (tx.category || 'Other') as Transaction['category'],
       }));
       return { cleanText, transactions: valid };
     }
