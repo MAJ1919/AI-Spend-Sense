@@ -49,10 +49,10 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: `Method ${req.method} not allowed.` });
   }
 
-  const apiKey = process.env.VITE_AGENT_API_KEY;
-  const instanceUrl = process.env.VITE_AGENT_API_URL;
-  const agentId = process.env.VITE_AGENT_ID;
-  const workspaceId = process.env.VITE_WORKSPACE_ID;
+  const apiKey = process.env.AGENT_API_KEY;
+  const instanceUrl = process.env.AGENT_API_URL;
+  const agentId = process.env.AGENT_ID;
+  const workspaceId = process.env.WORKSPACE_ID;
 
   if (!apiKey || !instanceUrl || !agentId || !workspaceId) {
     return res.status(500).json({ error: 'Missing Watson configuration variables in environment.' });

@@ -46,8 +46,8 @@ cp .env.example .env
 ```
 Open `.env` in a text editor and configure your custom Agent API endpoint if connecting to a live backend:
 ```env
-VITE_AGENT_API_URL=https://your-custom-agent-endpoint.com/api/v1/chat
-VITE_AGENT_API_KEY=your_secure_api_key_here
+AGENT_API_URL=https://your-custom-agent-endpoint.com/api/v1/chat
+AGENT_API_KEY=your_secure_api_key_here
 ```
 *(If left blank, the app gracefully falls back to the high-fidelity mock Watsonx chat simulation.)*
 
