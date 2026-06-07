@@ -14,7 +14,7 @@ export default async function handler(req: any, res: any) {
     return res.status(200).end();
   }
 
-  const databaseUrl = process.env.DATABASE_URL;
+  const databaseUrl = process.env.DATABASE_URL?.trim();
   if (!databaseUrl) {
     return res.status(500).json({ error: 'DATABASE_URL environment variable is missing.' });
   }
@@ -51,9 +51,23 @@ export default async function handler(req: any, res: any) {
       CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)
     `;
 
-    return res.status(200).json({ 
-      success: true, 
-      message: 'Database tables created successfully (users, transactions).' 
+    // Create profiles table (name, income, budgets, language, notifications, onboarding)
+    await sql`
+      CREATE TABLE IF NOT EXISTS profiles (
+        user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT DEFAULT '',
+        income NUMERIC DEFAULT 8000,
+        budgets JSONB DEFAULT '{}'::jsonb,
+        language TEXT DEFAULT 'ar',
+        notifications JSONB DEFAULT '{"weekly":true,"anomalies":true}'::jsonb,
+        onboarded BOOLEAN DEFAULT false,
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+
+    return res.status(200).json({
+      success: true,
+      message: 'Database tables created successfully (users, transactions, profiles).'
     });
 
   } catch (error: any) {
