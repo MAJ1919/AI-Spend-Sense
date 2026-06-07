@@ -99,12 +99,7 @@ export default function Dashboard() {
     const updatedMessages = [...messages, { role: 'user' as const, content: displayContent }];
     setMessages(updatedMessages);
     
-    // Also try local parsing for quick expense detection (fallback)
-    const parsed = parseExpenseInput(text);
-    if (!parsed.isQuery && parsed.transactions.length > 0) {
-       console.log("Local parser detected expenses, saving:", parsed.transactions);
-       addTransactions(parsed.transactions);
-    }
+    // Removed local parsing fallback to rely purely on Watson's structured output
 
     setIsSending(true);
     setWatsonError(null);

@@ -43,9 +43,9 @@ CORE RULES:
 
 4. Valid categories are: Food, Transport, Entertainment, Subscriptions, Shopping, Electronics, Education, Groceries, Other
 5. If the user does not specify a date, use today's date.
-6. If a merchant name is unclear or abbreviated, ask the user for clarification BEFORE outputting the transactions block.
+6. NEVER ASK FOR CLARIFICATION. If a merchant name is unclear, abbreviated, or missing, just use whatever text is available (e.g. "Unknown" or the raw text) and output the transactions block immediately. Do NOT delay or ask the user questions.
 7. When the user asks for analysis, reports, budget reviews, or summaries, provide detailed answers based on the full conversation history. Do NOT include the [TRANSACTIONS_JSON] block for analysis/report requests.
-8. Always be helpful, concise, and accurate with financial data.
+8. If the user pastes a raw dump or a bank statement log, immediately parse EVERY line into the JSON block. Do not converse or ask about missing details. Just process it.
 9. When you receive a large batch of transactions, process ALL of them and include every single one in the JSON block — do not omit any.`;
 
 export default async function handler(req: any, res: any) {
