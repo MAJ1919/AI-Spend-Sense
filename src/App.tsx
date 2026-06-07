@@ -1,4 +1,4 @@
-import { useEffect, useState, createContext, useContext } from 'react';
+import { useEffect, useState, useRef, createContext, useContext } from 'react';
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
 import { Wallet } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
@@ -57,7 +57,14 @@ export default function App() {
   const storeTransactions = useSpendStore((s) => s.transactions);
   const storeAddTransactions = useSpendStore((s) => s.addTransactions);
   const resetStoreData = useSpendStore((s) => s.resetData);
-  
+
+  const profile = useSpendStore((s) => s.profile);
+  const setProfile = useSpendStore((s) => s.setProfile);
+  // Guards so the debounced save doesn't overwrite the DB with the default
+  // profile before the user's row has been loaded on login.
+  const profileLoadedRef = useRef(false);
+  const profileSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(INITIAL_SUBSCRIPTIONS);
 
   // Sync with Neon database on startup or when user changes
@@ -107,6 +114,47 @@ export default function App() {
 
     fetchDBTransactions();
   }, [user]);
+
+  // Load the user's profile (name, income, budgets, notifications) from Neon on login.
+  useEffect(() => {
+    profileLoadedRef.current = false;
+    if (!user) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(`/api/profile?userId=${user.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (!cancelled && data.profile) {
+            setProfile(data.profile);
+          }
+        }
+      } catch (err) {
+        console.warn('Profile sync unavailable, using local profile:', err);
+      } finally {
+        if (!cancelled) profileLoadedRef.current = true;
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [user]);
+
+  // Debounced save of profile changes back to Neon (skips until the row is loaded).
+  useEffect(() => {
+    if (!user || !profileLoadedRef.current) return;
+    if (profileSaveTimer.current) clearTimeout(profileSaveTimer.current);
+
+    profileSaveTimer.current = setTimeout(() => {
+      fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, ...profile }),
+      }).catch((err) => console.error('Failed to save profile to Neon Postgres:', err));
+    }, 800);
+
+    return () => { if (profileSaveTimer.current) clearTimeout(profileSaveTimer.current); };
+  }, [profile, user]);
 
   const addTransactions = async (newTxs: Omit<Transaction, 'id'>[]) => {
     const prepared = newTxs.map((tx, idx) => ({
