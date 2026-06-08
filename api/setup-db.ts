@@ -1,7 +1,7 @@
 import { withApiSetup } from './_middleware';
 import type { NeonQueryFunction } from '@neondatabase/serverless';
 
-export default withApiSetup(async (req: any, res: any, sql: NeonQueryFunction<any, any>) => {
+export default withApiSetup(async (_req: any, res: any, sql: NeonQueryFunction<any, any>) => {
   try {
     // Create users table
     await sql`

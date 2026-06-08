@@ -10,11 +10,11 @@ export default withApiSetup(async (req: any, res: any, sql: NeonQueryFunction<an
       }
       const userId = req.user.id;
 
-      const result = await sql`
+      const result = (await sql`
         SELECT * FROM transactions 
         WHERE user_id = ${userId}
         ORDER BY date DESC
-      `;
+      `) as any[];
       // Map database row keys to frontend keys if needed (e.g. numeric types to float)
       const mapped = result.map((row: any) => ({
         id: row.id,

@@ -47,7 +47,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ action, username, password: pwd })
       });
       
-      const data = await response.json();
+      let data: any = {};
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        // Extract body text or clean Vercel error message if it's HTML
+        const cleanText = text.includes('<html>') || text.includes('<!DOCTYPE html>')
+          ? `Server returned an HTML response (Status ${response.status}). This often indicates a serverless function build failure or routing error.`
+          : text;
+        throw new Error(cleanText || `Request failed with status ${response.status}`);
+      }
       
       if (!response.ok) {
         throw new Error(data.error || 'Authentication failed');

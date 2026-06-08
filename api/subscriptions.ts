@@ -8,9 +8,9 @@ export default withApiSetup(async (req: any, res: any, sql: NeonQueryFunction<an
       if (!req.user || !req.user.id) return res.status(401).json({ error: 'Unauthorized.' });
       const userId = req.user.id;
 
-      const result = await sql`
+      const result = (await sql`
         SELECT * FROM subscriptions WHERE user_id = ${userId} ORDER BY created_at DESC
-      `;
+      `) as any[];
       const mapped = result.map((row: any) => ({
         id: row.id,
         name: row.name,

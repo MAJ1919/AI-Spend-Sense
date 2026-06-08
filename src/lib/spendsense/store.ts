@@ -50,6 +50,7 @@ interface State {
     updateTransaction: (id: string, partial: Partial<Transaction>) => void;
     setProfile: (p: Partial<UserProfile>) => void;
     resetData: () => void;
+    clearAllData: () => void;
 }
 
 const defaultProfile: UserProfile = {
@@ -74,6 +75,7 @@ export const useSpendStore = create<State>()(
             })),
             setProfile: (p) => set((s) => ({ profile: { ...s.profile, ...p } })),
             resetData: () => set({ messages: [], transactions: [] }),
+            clearAllData: () => set({ messages: [], transactions: [], profile: defaultProfile }),
         }),
         { name: "spendsense-store" }
     )

@@ -17,7 +17,7 @@ export default withApiSetup(async (req: any, res: any, sql: NeonQueryFunction<an
 
     if (action === 'register') {
       // Check if user exists
-      const existing = await sql`SELECT * FROM users WHERE username = ${username}`;
+      const existing = (await sql`SELECT * FROM users WHERE username = ${username}`) as any[];
       if (existing.length > 0) {
         return res.status(409).json({ error: 'Username already exists.' });
       }
@@ -37,14 +37,22 @@ export default withApiSetup(async (req: any, res: any, sql: NeonQueryFunction<an
     }
 
     if (action === 'login') {
-      const users = await sql`SELECT * FROM users WHERE username = ${username}`;
+      const users = (await sql`SELECT * FROM users WHERE username = ${username}`) as any[];
       if (users.length === 0) {
         return res.status(401).json({ error: 'Invalid username or password.' });
       }
 
       const user = users[0];
       
-      const isValid = bcrypt.compareSync(password, user.password_hash);
+      let isValid = false;
+      try {
+        if (user.password_hash && (user.password_hash.startsWith('$2a$') || user.password_hash.startsWith('$2b$') || user.password_hash.startsWith('$2y$'))) {
+          isValid = bcrypt.compareSync(password, user.password_hash);
+        }
+      } catch (err) {
+        console.error('Bcrypt compare failed:', err);
+      }
+
       if (!isValid) {
         // Fallback check for old base64 passwords (so user isn't immediately locked out if testing)
         if (user.password_hash === btoa(password)) {

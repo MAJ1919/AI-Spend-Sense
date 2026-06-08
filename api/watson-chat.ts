@@ -89,19 +89,28 @@ export default withApiSetup(async (req: any, res: any, sql: NeonQueryFunction<an
     const userId = req.user.id;
     if (userId) {
       try {
-        const transactions = await sql`SELECT date, merchant, amount, category FROM transactions WHERE user_id = ${userId} ORDER BY date DESC LIMIT 50`;
+        const transactions = (await sql`SELECT date, merchant, amount, category FROM transactions WHERE user_id = ${userId} ORDER BY date DESC LIMIT 50`) as any[];
         if (transactions.length > 0) {
-          dbContextMessage = `System Information: Here are the user's recent transactions from the database for your reference:\n${JSON.stringify(transactions)}`;
+          const castTransactions = transactions.map((row: any) => ({
+            date: row.date,
+            merchant: row.merchant,
+            amount: parseFloat(row.amount),
+            category: row.category
+          }));
+          dbContextMessage = `System Information: Here are the user's recent transactions from the database for your reference:\n${JSON.stringify(castTransactions)}`;
         }
       } catch (err) {
         console.error('Failed to fetch user transactions for Watson context:', err);
       }
     }
 
-    const fullMessages = [...conversationMessages];
+    let systemInstruction = `You are a helpful financial assistant. If the user provides any new transaction data (like purchases, income, expenses) in their message, you MUST extract them and strictly output them at the end of your response inside a JSON block with the following exact format: [TRANSACTIONS_JSON] [{"date": "YYYY-MM-DD", "merchant": "Name", "amount": 10.5, "category": "Food"}] [/TRANSACTIONS_JSON]. Use today's date if missing.`;
+    
     if (dbContextMessage) {
-      fullMessages.unshift({ role: 'system', content: dbContextMessage });
+      systemInstruction += `\n\n${dbContextMessage}`;
     }
+
+    const fullMessages = [{ role: 'system', content: systemInstruction }, ...conversationMessages];
 
     const watsonResponse = await fetch(targetUrl, {
       method: 'POST',
@@ -113,7 +122,7 @@ export default withApiSetup(async (req: any, res: any, sql: NeonQueryFunction<an
       body: JSON.stringify({
         messages: fullMessages,
         stream: false,
-        session_id: sessionId
+        session_id: req.user.id
       }),
     });
 

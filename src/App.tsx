@@ -59,13 +59,14 @@ export default function App() {
   const storeAddTransactions = useSpendStore((s) => s.addTransactions);
   const storeUpdateTransaction = useSpendStore((s) => s.updateTransaction);
   const resetStoreData = useSpendStore((s) => s.resetData);
+  const clearAllStoreData = useSpendStore((s) => s.clearAllData);
   
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(INITIAL_SUBSCRIPTIONS);
 
   // Sync with Neon database on startup or when user changes
   useEffect(() => {
     if (!user) {
-      resetStoreData();
+      clearAllStoreData();
       return;
     }
 
@@ -95,8 +96,20 @@ export default function App() {
         const subResponse = await fetch(`/api/subscriptions`, { headers: subHeaders });
         if (subResponse.ok) {
           const subData = await subResponse.json();
-          if (Array.isArray(subData) && subData.length > 0) {
-            setSubscriptions(subData);
+          if (Array.isArray(subData)) {
+            // Merge database subscriptions over the initial mock subscriptions
+            setSubscriptions(() => {
+              const merged = [...INITIAL_SUBSCRIPTIONS];
+              subData.forEach((dbSub: Subscription) => {
+                const index = merged.findIndex((s) => s.id === dbSub.id);
+                if (index !== -1) {
+                  merged[index] = dbSub;
+                } else {
+                  merged.push(dbSub);
+                }
+              });
+              return merged;
+            });
           }
         }
       } catch (err) {
