@@ -1,35 +1,14 @@
-import { neon } from '@neondatabase/serverless';
+import { withApiSetup } from './_middleware';
+import type { NeonQueryFunction } from '@neondatabase/serverless';
 
-export default async function handler(req: any, res: any) {
-  // Check if DATABASE_URL is configured
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    return res.status(500).json({ error: 'DATABASE_URL environment variable is missing.' });
-  }
-
-  const sql = neon(databaseUrl);
-
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,DELETE,POST,OPTIONS');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
-
-  // Preflight check
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
+export default withApiSetup(async (req: any, res: any, sql: NeonQueryFunction<any, any>) => {
   try {
     // 1. GET: Fetch transactions
     if (req.method === 'GET') {
-      const { userId } = req.query || {};
-      if (!userId) {
-         return res.status(401).json({ error: 'Unauthorized. Missing userId.' });
+      if (!req.user || !req.user.id) {
+         return res.status(401).json({ error: 'Unauthorized.' });
       }
+      const userId = req.user.id;
 
       const result = await sql`
         SELECT * FROM transactions 
@@ -48,32 +27,69 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json(mapped);
     }
 
-    // 2. POST: Insert transaction
+    // 2. POST: Insert transaction(s)
     if (req.method === 'POST') {
-      const { id, userId, date, merchant, amount, category, source } = req.body;
-      if (!id || !userId || !date || !merchant || amount === undefined || !category) {
-        return res.status(400).json({ error: 'Missing required transaction fields.' });
+      if (!req.user || !req.user.id) {
+         return res.status(401).json({ error: 'Unauthorized.' });
+      }
+      const userId = req.user.id;
+      const { transactions, ...singleTx } = req.body;
+      
+      const txsToInsert = Array.isArray(transactions) 
+        ? transactions.map((tx: any) => ({ ...tx, userId })) 
+        : [ { ...singleTx, userId } ];
+
+      if (txsToInsert.length === 0 || !txsToInsert[0].id) {
+        return res.status(400).json({ error: 'No valid transactions provided.' });
       }
 
-      await sql`
-        INSERT INTO transactions (id, user_id, date, merchant, amount, category, source)
-        VALUES (${id}, ${userId}, ${date}, ${merchant}, ${amount}, ${category}, ${source || 'manual'})
-        ON CONFLICT (id) DO UPDATE 
-        SET date = EXCLUDED.date,
-            merchant = EXCLUDED.merchant,
-            amount = EXCLUDED.amount,
-            category = EXCLUDED.category,
-            source = EXCLUDED.source
-      `;
-      return res.status(201).json({ success: true });
+      try {
+        await Promise.all(txsToInsert.map((tx: any) => {
+          const { id, userId, date, merchant, amount, category, source } = tx;
+          if (!id || !userId || !date || !merchant || amount === undefined || !category) {
+            throw new Error('Missing required transaction fields.');
+          }
+          return sql`
+            INSERT INTO transactions (id, user_id, date, merchant, amount, category, source)
+            VALUES (${id}, ${userId}, ${date}, ${merchant}, ${amount}, ${category}, ${source || 'manual'})
+            ON CONFLICT (id) DO UPDATE 
+            SET date = EXCLUDED.date,
+                merchant = EXCLUDED.merchant,
+                amount = EXCLUDED.amount,
+                category = EXCLUDED.category,
+                source = EXCLUDED.source
+          `;
+        }));
+        return res.status(201).json({ success: true });
+      } catch (err: any) {
+        return res.status(400).json({ error: err.message });
+      }
     }
 
-    // 3. DELETE: Clear all user transactions
-    if (req.method === 'DELETE') {
-      const { userId } = req.query || {};
-      if (!userId) {
-         return res.status(401).json({ error: 'Unauthorized. Missing userId.' });
+    // 3. PUT: Update a single transaction
+    if (req.method === 'PUT') {
+      if (!req.user || !req.user.id) {
+         return res.status(401).json({ error: 'Unauthorized.' });
       }
+      const userId = req.user.id;
+      const { id, category } = req.body;
+      if (!id || !category) {
+        return res.status(400).json({ error: 'Missing id or category' });
+      }
+      await sql`
+        UPDATE transactions 
+        SET category = ${category}
+        WHERE id = ${id} AND user_id = ${userId}
+      `;
+      return res.status(200).json({ success: true, message: 'Transaction updated successfully.' });
+    }
+
+    // 4. DELETE: Clear all user transactions
+    if (req.method === 'DELETE') {
+      if (!req.user || !req.user.id) {
+         return res.status(401).json({ error: 'Unauthorized.' });
+      }
+      const userId = req.user.id;
       await sql`DELETE FROM transactions WHERE user_id = ${userId}`;
       return res.status(200).json({ success: true, message: 'User transactions cleared successfully.' });
     }
@@ -81,11 +97,12 @@ export default async function handler(req: any, res: any) {
     // Unsupported methods
     return res.status(405).json({ error: `Method ${req.method} not allowed.` });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Serverless database error:', error);
+    const message = error instanceof Error ? error.message : String(error);
     return res.status(500).json({ 
       error: 'Database operation failed.', 
-      details: error.message || error 
+      details: message 
     });
   }
-}
+});

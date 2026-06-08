@@ -3,8 +3,9 @@ export interface Transaction {
   date: string;
   merchant: string;
   amount: number;
-  category: 'Food' | 'Transport' | 'Entertainment' | 'Subscriptions' | 'Shopping' | 'Electronics' | 'Education' | 'Groceries' | 'Other';
+  category: 'Food' | 'Transport' | 'Entertainment' | 'Subscriptions' | 'Shopping' | 'Electronics' | 'Education' | 'Groceries' | 'Other' | string;
   rawText?: string;
+  source?: string;
 }
 
 export interface Subscription {

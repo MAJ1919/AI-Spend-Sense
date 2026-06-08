@@ -1,16 +1,10 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { Transaction, Subscription } from "../types";
 
 export type ChatRole = "user" | "assistant" | "clarification" | "confirmation" | "coaching";
 
-export interface Subscription {
-    id: string;
-    name: string;
-    emoji: string;
-    amount: number;
-    lastCharge: string;
-    status: "active" | "suspicious";
-}
+// Removed Subscription interface as it is now imported from ../types
 export interface Anomaly {
     id: string;
     category: string;
@@ -28,6 +22,7 @@ export interface ChatMessage {
     id: string;
     role: ChatRole;
     content?: string;
+    displayContent?: string;
     language?: "ar" | "en";
     timestamp: number;
     itemsLogged?: number;
@@ -35,14 +30,7 @@ export interface ChatMessage {
     ambiguousItem?: string;
 }
 
-export interface Transaction {
-    id: string;
-    date: string;
-    merchant: string;
-    category: string;
-    amount: number;
-    source: string;
-}
+// Removed Transaction interface as it is now imported from ../types
 
 export interface UserProfile {
     name: string;
@@ -59,6 +47,7 @@ interface State {
     profile: UserProfile;
     addMessage: (m: ChatMessage) => void;
     addTransactions: (t: Transaction[]) => void;
+    updateTransaction: (id: string, partial: Partial<Transaction>) => void;
     setProfile: (p: Partial<UserProfile>) => void;
     resetData: () => void;
 }
@@ -80,6 +69,9 @@ export const useSpendStore = create<State>()(
             profile: defaultProfile,
             addMessage: (m) => set((s) => ({ messages: [...s.messages, m] })),
             addTransactions: (t) => set((s) => ({ transactions: [...t, ...s.transactions] })),
+            updateTransaction: (id, partial) => set((s) => ({
+                transactions: s.transactions.map(tx => tx.id === id ? { ...tx, ...partial } as Transaction : tx)
+            })),
             setProfile: (p) => set((s) => ({ profile: { ...s.profile, ...p } })),
             resetData: () => set({ messages: [], transactions: [] }),
         }),

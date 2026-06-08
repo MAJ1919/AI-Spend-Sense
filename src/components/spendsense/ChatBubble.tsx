@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
-import type { ChatMessage } from "@/lib/spendsense/store";
+import type { ChatMessage } from "../../lib/spendsense/store";
 import { CoachingStack } from "./CoachingStack";
 
 function timeLabel(ts: number) {

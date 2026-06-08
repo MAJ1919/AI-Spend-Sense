@@ -5,7 +5,7 @@ import Dashboard from './pages/Dashboard';
 import History from './pages/History';
 import Settings from './pages/Settings';
 import { OnboardingModal } from './components/spendsense/OnboardingStack';
-import { useSpendStore, Transaction as StoreTransaction } from './lib/spendsense/store';
+import { useSpendStore } from './lib/spendsense/store';
 import { Transaction, Subscription } from './lib/types';
 import { useTranslation } from 'react-i18next';
 import { LoginModal } from './components/spendsense/LoginModal';
@@ -38,6 +38,7 @@ interface AppContextType {
   transactions: Transaction[];
   addTransactions: (txs: Omit<Transaction, 'id'>[]) => void;
   clearTransactions: () => void;
+  updateTransactionCategory: (id: string, newCategory: Transaction['category']) => void;
   subscriptions: Subscription[];
   cancelSubscription: (id: string) => void;
 }
@@ -56,6 +57,7 @@ export default function App() {
   
   const storeTransactions = useSpendStore((s) => s.transactions);
   const storeAddTransactions = useSpendStore((s) => s.addTransactions);
+  const storeUpdateTransaction = useSpendStore((s) => s.updateTransaction);
   const resetStoreData = useSpendStore((s) => s.resetData);
   
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(INITIAL_SUBSCRIPTIONS);
@@ -67,16 +69,17 @@ export default function App() {
       return;
     }
 
-    const fetchDBTransactions = async () => {
+    const fetchDBData = async () => {
       try {
-        const response = await fetch(`/api/transactions?userId=${user.id}`);
+        const headers: HeadersInit = user.token ? { 'Authorization': `Bearer ${user.token}` } : {};
+        const response = await fetch(`/api/transactions`, { headers });
         if (!response.ok) throw new Error('Database serverless API offline');
         
         const data = await response.json();
         if (Array.isArray(data)) {
           // Clear current store cache to avoid duplicates and load fresh Postgres data
           resetStoreData();
-          const mapped: StoreTransaction[] = data.map((tx: any) => ({
+          const mapped: Transaction[] = data.map((tx: any) => ({
             id: tx.id,
             date: tx.date,
             merchant: tx.merchant,
@@ -85,7 +88,16 @@ export default function App() {
             source: tx.source || 'db'
           }));
           storeAddTransactions(mapped);
-          return;
+        }
+
+        // Fetch subscriptions
+        const subHeaders: HeadersInit = user.token ? { 'Authorization': `Bearer ${user.token}` } : {};
+        const subResponse = await fetch(`/api/subscriptions`, { headers: subHeaders });
+        if (subResponse.ok) {
+          const subData = await subResponse.json();
+          if (Array.isArray(subData) && subData.length > 0) {
+            setSubscriptions(subData);
+          }
         }
       } catch (err) {
         console.warn('Neon database syncing unavailable, falling back to local mock data:', err);
@@ -93,7 +105,7 @@ export default function App() {
 
       // Pre-seed demo fallback if database sync failed and store is empty
       if (storeTransactions.length === 0) {
-        const mapped: StoreTransaction[] = INITIAL_TRANSACTIONS.map(tx => ({
+        const mapped: Transaction[] = INITIAL_TRANSACTIONS.map(tx => ({
           id: tx.id,
           date: tx.date,
           merchant: tx.merchant,
@@ -105,7 +117,7 @@ export default function App() {
       }
     };
 
-    fetchDBTransactions();
+    fetchDBData();
   }, [user]);
 
   const addTransactions = async (newTxs: Omit<Transaction, 'id'>[]) => {
@@ -119,7 +131,7 @@ export default function App() {
     }));
 
     // Optimistically update local Zustand store
-    const mappedStore: StoreTransaction[] = prepared.map(tx => ({
+    const mappedStore: Transaction[] = prepared.map(tx => ({
       id: tx.id,
       date: tx.date,
       merchant: tx.merchant,
@@ -129,20 +141,38 @@ export default function App() {
     }));
     storeAddTransactions(mappedStore);
 
-    // Save transaction directly to Neon PostgreSQL via Serverless API
+    // Save transactions directly to Neon PostgreSQL via Serverless API in bulk
     try {
       if (!user) throw new Error('Not logged in');
-      for (const tx of prepared) {
-        await fetch('/api/transactions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ ...tx, userId: user.id })
-        });
-      }
+      await fetch('/api/transactions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(user.token ? { 'Authorization': `Bearer ${user.token}` } : {})
+        },
+        body: JSON.stringify({ transactions: prepared })
+      });
     } catch (err) {
       console.error('Failed to sync transaction to Neon Postgres database:', err);
+    }
+  };
+
+  const updateTransactionCategory = async (id: string, newCategory: Transaction['category']) => {
+    storeUpdateTransaction(id, { category: newCategory });
+    
+    if (user) {
+      try {
+        await fetch('/api/transactions', {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(user.token ? { 'Authorization': `Bearer ${user.token}` } : {})
+          },
+          body: JSON.stringify({ id, category: newCategory })
+        });
+      } catch (err) {
+        console.error('Failed to update transaction category:', err);
+      }
     }
   };
 
@@ -153,18 +183,36 @@ export default function App() {
     // Clear Neon PostgreSQL database
     try {
       if (!user) throw new Error('Not logged in');
-      await fetch(`/api/transactions?userId=${user.id}`, {
-        method: 'DELETE'
-      });
+      const headers: HeadersInit = user?.token ? { 'Authorization': `Bearer ${user.token}` } : {};
+      await fetch(`/api/transactions`, { method: 'DELETE', headers });
     } catch (err) {
       console.error('Failed to clear transactions from Neon Postgres database:', err);
     }
   };
 
-  const cancelSubscription = (id: string) => {
+  const cancelSubscription = async (id: string) => {
+    // Optimistic UI update
     setSubscriptions((prev) =>
       prev.map((sub) => (sub.id === id ? { ...sub, status: 'inactive' } : sub))
     );
+
+    // Persist to DB
+    try {
+      if (!user) return;
+      const subToUpdate = subscriptions.find(s => s.id === id);
+      if (subToUpdate) {
+        await fetch('/api/subscriptions', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(user.token ? { 'Authorization': `Bearer ${user.token}` } : {})
+          },
+          body: JSON.stringify({ ...subToUpdate, status: 'inactive' })
+        });
+      }
+    } catch (err) {
+      console.error('Failed to cancel subscription in DB:', err);
+    }
   };
 
   // Map store transactions back to local type
@@ -177,7 +225,7 @@ export default function App() {
   }));
 
   return (
-    <AppContext.Provider value={{ transactions, addTransactions, clearTransactions, subscriptions, cancelSubscription }}>
+    <AppContext.Provider value={{ transactions, addTransactions, clearTransactions, updateTransactionCategory, subscriptions, cancelSubscription }}>
       <BrowserRouter>
         <div className="flex flex-col min-h-screen">
           {/* Onboarding Questions Overlay */}

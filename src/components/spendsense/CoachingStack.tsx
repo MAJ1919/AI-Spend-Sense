@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { AlertTriangle, Search, BarChart3, Share2, Bookmark } from "lucide-react";
-import type { CoachingPayload } from "@/lib/spendsense/store";
+import type { CoachingPayload } from "../../lib/spendsense/store";
 
 const card = (delay: number) => ({
     initial: { opacity: 0, y: 16 },
@@ -73,12 +73,12 @@ function PassiveDrainCard({ subs, delay }: { subs: CoachingPayload["passiveDrain
                     <li key={s.id} className="flex items-center justify-between py-3">
                         <div className="flex items-center gap-3">
                             <span className="grid size-10 place-items-center rounded-xl bg-bg-surface text-lg">
-                                {s.emoji}
+                                {s.iconType === 'clapboard' ? '🎬' : s.iconType === 'music' ? '🎵' : s.iconType === 'cloud' ? '☁️' : s.iconType === 'tv' ? '📺' : '❓'}
                             </span>
                             <div>
                                 <p className="font-medium text-text-arabic">{s.name}</p>
                                 <p className="text-xs text-muted-foreground" dir="ltr">
-                                    Last: {new Date(s.lastCharge).toLocaleDateString()}
+                                    Last: {new Date(s.lastPaymentDate).toLocaleDateString()}
                                 </p>
                             </div>
                         </div>

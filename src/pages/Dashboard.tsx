@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../lib/AuthContext';
 import { Sparkles, Loader2, AlertCircle, Paperclip, X, CheckCircle2 } from 'lucide-react';
 import { Transaction } from '../lib/types';
+import { useSpendStore } from '../lib/spendsense/store';
 
 // Helper: extract structured transactions from Watson's response text
 function extractTransactionsFromResponse(responseText: string): {
@@ -46,8 +47,9 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
   
-  // Store messages as {role, content, displayContent?} for Watson conversation history
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant', content: string, displayContent?: string }[]>([]);
+  // Store messages in global persistent store
+  const messages = useSpendStore((s) => s.messages);
+  const addMessage = useSpendStore((s) => s.addMessage);
   const [inputText, setInputText] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [watsonError, setWatsonError] = useState<string | null>(null);
@@ -88,15 +90,30 @@ export default function Dashboard() {
     setSelectedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     
-    // Build display content for the user bubble
-    let displayContent = text;
+    let fileText = "";
     if (file) {
-      displayContent = text ? `[📎 ${file.name}]\n${text}` : `[📎 ${file.name}]`;
+      try {
+        fileText = await file.text();
+      } catch (err) {
+        console.error("Failed to read file", err);
+      }
     }
 
-    // Add user message to local state
-    const updatedMessages = [...messages, { role: 'user' as const, content: displayContent, displayContent }];
-    setMessages(updatedMessages);
+    // Build display content for the user bubble
+    let displayContent = text;
+    let actualContent = text;
+    
+    if (file) {
+      displayContent = text ? `[📎 ${file.name}]\n${text}` : `[📎 ${file.name}]`;
+      actualContent = text ? `[Attached File: ${file.name}]\n${fileText}\n\n[User Message]:\n${text}` : `[Attached File: ${file.name}]\n${fileText}`;
+    }
+
+    // Add user message to global state
+    const userMessage = { id: Date.now().toString(), role: 'user' as const, content: actualContent, displayContent, timestamp: Date.now() };
+    addMessage(userMessage);
+    
+    // We send the updated array to Watson
+    const updatedMessages = [...messages, userMessage];
     
     // Removed local parsing fallback to rely purely on Watson's structured output
 
@@ -104,15 +121,14 @@ export default function Dashboard() {
     setWatsonError(null);
 
     try {
-      // Send the FULL conversation history to Watson for context memory
       const response = await fetch('/api/watson-chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(user?.token ? { 'Authorization': `Bearer ${user.token}` } : {})
         },
         body: JSON.stringify({ 
-          messages: updatedMessages.map(m => ({ role: m.role, content: m.content })),
-          sessionId: user?.id 
+          messages: updatedMessages.map(m => ({ role: m.role, content: m.content }))
         }),
       });
   
@@ -133,8 +149,8 @@ export default function Dashboard() {
         setSavedTxCount(extractedTxs.length);
       }
 
-      // Add the assistant's response (raw text to history, clean text for display)
-      setMessages(prev => [...prev, { role: 'assistant', content: rawReply, displayContent: cleanText }]);
+      // Add the assistant's response to global store
+      addMessage({ id: (Date.now() + 1).toString(), role: 'assistant', content: rawReply, displayContent: cleanText, timestamp: Date.now() });
     } catch (error) {
       console.error("Failed to send message:", error);
       setWatsonError(t('dashboard.send_error', 'حدث خطأ أثناء إرسال الرسالة. يرجى التحقق من إعدادات Watson Orchestrate.'));

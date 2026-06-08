@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../App';
 import { useTranslation } from 'react-i18next';
 import { Search, FolderOpen, Trash2 } from 'lucide-react';
+import { Transaction } from '../lib/types';
 
 
 const CATEGORIES: { key: string; label: string }[] = [
@@ -14,7 +15,7 @@ const CATEGORIES: { key: string; label: string }[] = [
 ];
 
 export default function History() {
-  const { transactions, clearTransactions } = useApp();
+  const { transactions, clearTransactions, updateTransactionCategory } = useApp();
   const { t, i18n } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
@@ -106,9 +107,21 @@ export default function History() {
 
                 {/* Cat */}
                 <div className="md:w-1/4 flex items-center justify-start md:justify-center">
-                  <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-slate-900 border border-border/60 text-slate-300">
-                    {t(`categories.${tx.category}`, tx.category)}
-                  </span>
+                  <select
+                    value={tx.category}
+                    onChange={(e) => updateTransactionCategory(tx.id, e.target.value as Transaction['category'])}
+                    className="px-3 py-1 rounded-lg text-xs font-semibold bg-slate-900 border border-border/60 text-slate-300 hover:border-accent-teal focus:outline-none focus:border-accent-teal cursor-pointer appearance-none text-center"
+                    style={{ textAlignLast: 'center' }}
+                  >
+                    {CATEGORIES.filter(c => c.key !== 'all').map(cat => (
+                      <option key={cat.key} value={cat.key}>
+                        {t(`categories.${cat.key}`, cat.label)}
+                      </option>
+                    ))}
+                    {/* Add "Other" if not in main list but exists on tx */}
+                    {tx.category === 'Other' && <option value="Other">{t('categories.Other', 'Other')}</option>}
+                    {tx.category === 'Unknown' && <option value="Unknown">{t('categories.Unknown', 'Unknown')}</option>}
+                  </select>
                 </div>
 
                 {/* Date */}

@@ -1,26 +1,9 @@
-import { neon } from '@neondatabase/serverless';
+import { withApiSetup } from './_middleware';
+import type { NeonQueryFunction } from '@neondatabase/serverless';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
-export default async function handler(req: any, res: any) {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    return res.status(500).json({ error: 'DATABASE_URL environment variable is missing.' });
-  }
-
-  const sql = neon(databaseUrl);
-
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
+export default withApiSetup(async (req: any, res: any, sql: NeonQueryFunction<any, any>) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: `Method ${req.method} not allowed.` });
   }
@@ -39,9 +22,7 @@ export default async function handler(req: any, res: any) {
         return res.status(409).json({ error: 'Username already exists.' });
       }
 
-      // Very simple hashing for MVP: base64 encode the password
-      // In production, use bcrypt or argon2
-      const passwordHash = btoa(password);
+      const passwordHash = bcrypt.hashSync(password, 10);
       const userId = 'usr_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
 
       await sql`
@@ -49,7 +30,10 @@ export default async function handler(req: any, res: any) {
         VALUES (${userId}, ${username}, ${passwordHash})
       `;
 
-      return res.status(201).json({ user: { id: userId, username } });
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) return res.status(500).json({ error: 'JWT_SECRET environment variable is missing.' });
+      const token = jwt.sign({ id: userId, username }, jwtSecret, { expiresIn: '7d' });
+      return res.status(201).json({ user: { id: userId, username, token } });
     }
 
     if (action === 'login') {
@@ -59,23 +43,34 @@ export default async function handler(req: any, res: any) {
       }
 
       const user = users[0];
-      const passwordHash = btoa(password);
-
-      if (user.password_hash !== passwordHash) {
-        return res.status(401).json({ error: 'Invalid username or password.' });
+      
+      const isValid = bcrypt.compareSync(password, user.password_hash);
+      if (!isValid) {
+        // Fallback check for old base64 passwords (so user isn't immediately locked out if testing)
+        if (user.password_hash === btoa(password)) {
+          // It's a legacy Base64 password. Rehash it securely for the future.
+          const newHash = bcrypt.hashSync(password, 10);
+          await sql`UPDATE users SET password_hash = ${newHash} WHERE id = ${user.id}`;
+        } else {
+          return res.status(401).json({ error: 'Invalid username or password.' });
+        }
       }
 
-      return res.status(200).json({ user: { id: user.id, username: user.username } });
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) return res.status(500).json({ error: 'JWT_SECRET environment variable is missing.' });
+      const token = jwt.sign({ id: user.id, username: user.username }, jwtSecret, { expiresIn: '7d' });
+      return res.status(200).json({ user: { id: user.id, username: user.username, token } });
     }
 
     return res.status(400).json({ error: 'Invalid action. Must be register or login.' });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Auth serverless error:', error);
+    const message = error instanceof Error ? error.message : String(error);
     // Let's add a special error message if the table doesn't exist
-    if (error.message && error.message.includes('relation "users" does not exist')) {
+    if (message.includes('relation "users" does not exist')) {
        return res.status(500).json({ error: 'Database tables not created yet.', needsSetup: true });
     }
-    return res.status(500).json({ error: 'Auth operation failed.', details: error.message || error });
+    return res.status(500).json({ error: 'Auth operation failed.', details: message });
   }
-}
+});

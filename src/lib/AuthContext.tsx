@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 interface User {
   id: string;
   username: string;
+  token?: string;
 }
 
 interface AuthContextType {
@@ -57,15 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: true };
     } catch (err: any) {
       setError(err.message);
-      // Fallback for MVP if backend is offline
-      if (err.message.includes('fetch') || err.message.includes('DATABASE_URL') || err.message.includes('Database tables not created')) {
-         console.warn('Backend unavailable, falling back to mock auth');
-         const mockId = 'user_' + btoa(username).substring(0, 10);
-         const newUser = { id: mockId, username };
-         setUser(newUser);
-         localStorage.setItem('spendsense_user', JSON.stringify(newUser));
-         return { success: true };
-      }
+      // Removed fallback for MVP: true client-side authentication is now required
       return { success: false, error: err.message };
     } finally {
       setLoading(false);
